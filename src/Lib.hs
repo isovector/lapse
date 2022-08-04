@@ -36,16 +36,19 @@ data GitStats = GitStats
   { gs_files :: Int
   , gs_adds :: Int
   , gs_dels :: Int
+  , gs_commits :: Int
   }
   deriving (Eq, Ord, Show)
 
 getGitStats :: String -> IO GitStats
 getGitStats sha = do
   res <- readProcess "git" ["diff", "--shortstat", sha, "HEAD"] ""
+  comms <- readProcess "git" ["rev-list", "--count", sha <> "..HEAD"] ""
   pure $
     case words res of
-      [] -> GitStats 0 0 0
-      [files, _, _, adds, _, dels, _] -> GitStats (read files) (read adds) (read dels)
+      [] -> GitStats 0 0 0 0
+      [files, _, _, adds, _, dels, _] ->
+        GitStats (read files) (read adds) (read dels) (read comms)
       x -> error $ "bad format! " <> show x
 
 
@@ -83,6 +86,7 @@ main = do
                   bg = rectangle sides 240 solid $ makeColor 0.9 0.9 0.9 1
               in flip (overlayAlign low high) bg $ aboves
                   [ txt
+                  , stat $ show (gs_commits gs) <> " commits"
                   , stat $ show (gs_files gs) <> " files changed"
                   , stat $ show (gs_adds gs) <> " additions"
                   , stat $ show (gs_dels gs) <> " deletions"
