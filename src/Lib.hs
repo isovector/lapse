@@ -5,7 +5,7 @@
 module Lib where
 
 import Control.Concurrent.Async
-import Data.Time (getCurrentTime, utcToLocalTime, formatTime, defaultTimeLocale)
+import Data.Time (getCurrentTime, utcToLocalTime, formatTime, defaultTimeLocale, getCurrentTimeZone)
 import Graphics.Gloss
 import Graphics.Gloss.Export.PNG
 import Graphics.Gloss.Juicy
@@ -15,21 +15,22 @@ import System.IO.Temp (withSystemTempDirectory)
 import System.Process
 
 
-heading :: String -> Image
-heading
-  = toImage 20 50
-  . translate 0 (-30)
-  . scale 0.3 0.3
+mkText :: Float -> String -> Image
+mkText sz
+  = toImage 20 (sz * 20 - 10)
+  . translate 0 (-10 * sz)
+  . scale (0.1 * sz) (0.1 * sz)
   . color (makeColor 0 0 0 1)
   . text
 
+
+heading :: String -> Image
+heading = mkText 3
+
+
 stat :: String -> Image
-stat
-  = toImage 20 30
-  . translate 0 (-20)
-  . scale 0.2 0.2
-  . color (makeColor 0 0 0 1)
-  . text
+stat = mkText 2
+
 
 data GitStats = GitStats
   { gs_files :: Int
@@ -48,11 +49,10 @@ getGitStats sha = do
       x -> error $ "bad format! " <> show x
 
 
-
-
 getNow :: IO Image
 getNow = do
-  now <- utcToLocalTime (read "PST") <$> getCurrentTime
+  tz <- getCurrentTimeZone
+  now <- utcToLocalTime tz <$> getCurrentTime
   pure $ aboves
     [ heading $ formatTime defaultTimeLocale "%b%e, %Y" now
     , heading $ formatTime defaultTimeLocale "%T" now
@@ -70,7 +70,7 @@ main = do
           <$> Concurrently (getScreenshot dir)
           <*> Concurrently (getWebcam dir)
           <*> Concurrently getNow
-          <*> Concurrently (getGitStats "HEAD~1")
+          <*> Concurrently (getGitStats "a1d41c8b00057d415ac96369f557f67fa4134846")
       let sides = (1920 - 320) / 2
       exportImage  (makeColor 1 0 1 1) "/tmp/out.png" $ aboves
         [ screen
