@@ -23,13 +23,28 @@ heading
   . color (makeColor 0 0 0 1)
   . text
 
-getGitStats :: String -> IO (Int, Int, Int)
+stat :: String -> Image
+stat
+  = toImage 20 30
+  . translate 0 (-20)
+  . scale 0.2 0.2
+  . color (makeColor 0 0 0 1)
+  . text
+
+data GitStats = GitStats
+  { gs_files :: Int
+  , gs_adds :: Int
+  , gs_dels :: Int
+  }
+  deriving (Eq, Ord, Show)
+
+getGitStats :: String -> IO GitStats
 getGitStats sha = do
   res <- readProcess "git" ["diff", "--shortstat", sha, "HEAD"] ""
   pure $
     case words res of
-      [] -> (0, 0, 0)
-      [files, _, _, adds, _, dels, _] -> (read files, read adds, read dels)
+      [] -> GitStats 0 0 0
+      [files, _, _, adds, _, dels, _] -> GitStats (read files) (read adds) (read dels)
       x -> error $ "bad format! " <> show x
 
 
@@ -48,14 +63,14 @@ strut h = rectangle 2 h solid $ makeColor 0 0 0 1
 
 main :: IO ()
 main = do
-    print =<< getGitStats "HEAD~1"
   -- for_ [0..10] $ const $ do
     withSystemTempDirectory "lapse" $ \dir -> do
-      (screen, wc, now) <- runConcurrently $
-        (,,)
+      (screen, wc, now, gs) <- runConcurrently $
+        (,,,)
           <$> Concurrently (getScreenshot dir)
           <*> Concurrently (getWebcam dir)
           <*> Concurrently getNow
+          <*> Concurrently (getGitStats "HEAD~1")
       let sides = (1920 - 320) / 2
       exportImage  (makeColor 1 0 1 1) "/tmp/out.png" $ aboves
         [ screen
@@ -66,7 +81,12 @@ main = do
             , strut 240
             , let txt = now
                   bg = rectangle sides 240 solid $ makeColor 0.9 0.9 0.9 1
-              in overlayAlign low high txt bg
+              in flip (overlayAlign low high) bg $ aboves
+                  [ txt
+                  , stat $ show (gs_files gs) <> " files changed"
+                  , stat $ show (gs_adds gs) <> " additions"
+                  , stat $ show (gs_dels gs) <> " deletions"
+                  ]
             ]
         ]
 
