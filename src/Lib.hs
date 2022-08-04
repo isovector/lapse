@@ -4,18 +4,16 @@
 
 module Lib where
 
-import Graphics.Gloss.Export.PNG
-import Graphics.Gloss
-import Graphics.Htdp.Data.Image (shapes, Image (Image))
-import Graphics.Htdp
-import System.Process
-import Graphics.Gloss.Juicy
-import System.IO.Temp (withSystemTempDirectory)
-import Data.Time (getCurrentTime, utcToLocalTime, formatTime, defaultTimeLocale, diffUTCTime)
-import Data.Foldable (for_)
 import Control.Concurrent.Async
-import Control.Monad (void)
-import Data.List (intercalate)
+import Data.Time (getCurrentTime, utcToLocalTime, formatTime, defaultTimeLocale)
+import Graphics.Gloss
+import Graphics.Gloss.Export.PNG
+import Graphics.Gloss.Juicy
+import Graphics.Htdp
+import Graphics.Htdp.Data.Image (shapes, Image (Image))
+import System.IO.Temp (withSystemTempDirectory)
+import System.Process
+
 
 heading :: String -> Image
 heading
@@ -24,6 +22,18 @@ heading
   . scale 0.3 0.3
   . color (makeColor 0 0 0 1)
   . text
+
+getGitStats :: String -> IO (Int, Int, Int)
+getGitStats sha = do
+  res <- readProcess "git" ["diff", "--shortstat", sha, "HEAD"] ""
+  pure $
+    case words res of
+      [] -> (0, 0, 0)
+      [files, _, _, adds, _, dels, _] -> (read files, read adds, read dels)
+      x -> error $ "bad format! " <> show x
+
+
+
 
 getNow :: IO Image
 getNow = do
@@ -38,6 +48,7 @@ strut h = rectangle 2 h solid $ makeColor 0 0 0 1
 
 main :: IO ()
 main = do
+    print =<< getGitStats "HEAD~1"
   -- for_ [0..10] $ const $ do
     withSystemTempDirectory "lapse" $ \dir -> do
       (screen, wc, now) <- runConcurrently $
