@@ -59,6 +59,6 @@ workPanel now ss =
   vcat' (def & sep .~ 50 & catMethod .~ Distrib)
     [ midsize $ formatSession (s_dur $ last $ ss_sessions ss) <> "  this session"
     , midsize $ formatSession (sumNDT $ mapMaybe (todayPortion now) $ ss_sessions ss) <> "  today"
-    , midsize $ show (ss_total ss) <> "  this week"
+    , midsize $ formatSession (ss_total ss) <> "  this week"
     ]
 
