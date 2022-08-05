@@ -25,7 +25,12 @@ source-repository head
 
 library
   exposed-modules:
+      ClockPanel
+      Data
+      GitPanel
       Lib
+      Types
+      Utils
   other-modules:
       Paths_lapse
   hs-source-dirs:
