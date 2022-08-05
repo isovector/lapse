@@ -29,6 +29,7 @@ library
       Data
       GitPanel
       Lib
+      SpyPanels
       Types
       Utils
   other-modules:
@@ -43,6 +44,7 @@ library
     , diagrams-lib
     , diagrams-rasterific
     , directory
+    , optparse-applicative
     , process
     , temporary
     , time
@@ -64,6 +66,7 @@ executable lapse-exe
     , diagrams-rasterific
     , directory
     , lapse
+    , optparse-applicative
     , process
     , temporary
     , time
@@ -86,6 +89,7 @@ test-suite lapse-test
     , diagrams-rasterific
     , directory
     , lapse
+    , optparse-applicative
     , process
     , temporary
     , time
