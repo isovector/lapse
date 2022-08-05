@@ -5,30 +5,26 @@
 module Lib where
 
 import Control.Concurrent.Async
-import Data.Time (getCurrentTime, utcToLocalTime, formatTime, defaultTimeLocale, getCurrentTimeZone)
-import Graphics.Gloss
-import Graphics.Gloss.Export.PNG
-import Graphics.Gloss.Juicy
-import Graphics.Htdp
-import Graphics.Htdp.Data.Image (shapes, Image (Image))
+import Data.Time (getCurrentTime, utcToLocalTime, formatTime, defaultTimeLocale, getCurrentTimeZone, fromGregorian)
 import System.IO.Temp (withSystemTempDirectory)
 import System.Process
+import Diagrams.Prelude
+import Diagrams.Backend.Rasterific (B, renderRasterific)
+import Diagrams.Backend.Rasterific.Text (texterific)
+import Data.Time.LocalTime
+import Data.Time.Clock
 
 
-mkText :: Float -> String -> Image
+mkText :: Double -> String -> Diagram B
 mkText sz
-  = toImage 20 (sz * 20 - 10)
-  . translate 0 (-10 * sz)
-  . scale (0.1 * sz) (0.1 * sz)
-  . color (makeColor 0 0 0 1)
-  . text
+  = scale (10 * sz) . texterific
 
 
-heading :: String -> Image
+heading :: String -> Diagram B
 heading = mkText 3
 
 
-stat :: String -> Image
+stat :: String -> Diagram B
 stat = mkText 2
 
 
@@ -52,45 +48,72 @@ getGitStats sha = do
       x -> error $ "bad format! " <> show x
 
 
-getNow :: IO Image
+getNow :: IO LocalTime
 getNow = do
   tz <- getCurrentTimeZone
-  now <- utcToLocalTime tz <$> getCurrentTime
-  pure $ aboves
-    [ heading $ formatTime defaultTimeLocale "%b%e, %Y" now
-    , heading $ formatTime defaultTimeLocale "%T" now
-    ]
+  utcToLocalTime tz <$> getCurrentTime
 
-strut :: Float -> Image
-strut h = rectangle 2 h solid $ makeColor 0 0 0 1
+printTime :: LocalTime -> Diagram B
+printTime now = vcat
+  [ heading $ formatTime defaultTimeLocale "%b%e, %Y" now
+  , heading $ formatTime defaultTimeLocale "%T" now
+  ]
+
+printDiff :: NominalDiffTime -> Diagram B
+printDiff now = vcat
+  [ stat $ formatTime defaultTimeLocale "%d days %H hours %M minutes" now
+  ]
+
+data SelfStats = SelfStats
+  { ss_keystrokes :: Int
+  , ss_keyseqs :: Int
+  , ss_clicks :: Int
+  , ss_mouses :: Int
+  }
+  deriving (Eq, Ord, Show)
+
+getSelfStats :: IO SelfStats
+getSelfStats = do
+  (stats : _ : total : _ : _ : periods) <- fmap lines $ readProcess "selfstats" ["-p", "", "-b", "1", "w", "--periods", "180"] ""
+  print (total, periods)
+  pure $
+    case words $ stats of
+      [kstr,_,_,kseq,_,_,clicks,_,_,_,_,mouse,_,_] ->
+        SelfStats (read kstr) (read kseq) (read clicks) (read mouse)
+      _ -> SelfStats 0 0 0 0
+
 
 main :: IO ()
 main = do
+    let start = LocalTime (fromGregorian 2022 8 4) $ TimeOfDay 21 0 0
   -- for_ [0..10] $ const $ do
     withSystemTempDirectory "lapse" $ \dir -> do
-      (screen, wc, now, gs) <- runConcurrently $
-        (,,,)
+      (screen, wc, now, gs, ss) <- runConcurrently $
+        (,,,,)
           <$> Concurrently (getScreenshot dir)
           <*> Concurrently (getWebcam dir)
           <*> Concurrently getNow
           <*> Concurrently (getGitStats "a1d41c8b00057d415ac96369f557f67fa4134846")
-      let sides = (1920 - 320) / 2
-      exportImage  (makeColor 1 0 1 1) "/tmp/out.png" $ aboves
+          <*> Concurrently getSelfStats
+      renderRasterific "/tmp/out.png" (dims $ V2 640 480) $  vcat
         [ screen
-        , besides
-            [ rectangle sides 100 solid $ makeColor 1 1 1 1
-            , strut 240
-            , wc
-            , strut 240
-            , let txt = now
-                  bg = rectangle sides 240 solid $ makeColor 0.9 0.9 0.9 1
-              in flip (overlayAlign low high) bg $ aboves
-                  [ txt
-                  , stat $ show (gs_commits gs) <> " commits"
-                  , stat $ show (gs_files gs) <> " files changed"
-                  , stat $ show (gs_adds gs) <> " additions"
-                  , stat $ show (gs_dels gs) <> " deletions"
-                  ]
+        , centerX $ hcat' (def & sep .~ 40)
+            [ centerY wc
+            , centerY $ printTime now
+            , centerY $ rect 1 240 # fc black
+            , centerY $ vcat' (def & sep .~ 50 & catMethod .~ Distrib)
+                [ stat $ show (ss_keystrokes ss) <> " keystrokes"
+                , stat $ show (ss_keyseqs ss) <> " key sequences"
+                , stat $ show (ss_clicks ss) <> " clicks"
+                , stat $ show (ss_mouses ss) <> " mouse moves"
+                ]
+            , centerY $ rect 1 240 # fc black
+            , centerY $ vcat' (def & sep .~ 50 & catMethod .~ Distrib)
+                [ stat $ show (gs_commits gs) <> " commits"
+                , stat $ show (gs_files gs) <> " files changed"
+                , stat $ show (gs_adds gs) <> " additions"
+                , stat $ show (gs_dels gs) <> " deletions"
+                ]
             ]
         ]
 
@@ -99,19 +122,15 @@ tags =
   [ "prj:go-go"
   ]
 
-exportImage :: Color -> FilePath -> Image -> IO ()
-exportImage c fp img@(Image w h _) =
-  exportPictureToPNG (round w, round h) c fp $ toPicture img
 
-
-getScreenshot :: FilePath -> IO Image
+getScreenshot :: FilePath -> IO (Diagram B)
 getScreenshot dir = do
   let fp = dir <> "/screenshot.png"
   callProcess "scrot" ["-p", "-f", fp]
-  Just png <- loadJuicyPNG fp
-  pure $ toImage 1920 1080 png
+  Right png <- loadImageEmb fp
+  pure $ image png
 
-getWebcam :: FilePath -> IO Image
+getWebcam :: FilePath -> IO (Diagram B)
 getWebcam dir = do
   let fp = dir <> "/webcam%03d.png"
   callProcess "ffmpeg"
@@ -121,18 +140,8 @@ getWebcam dir = do
     , "-video_size", "640x480"
     , fp
     ]
-  Just png <- loadJuicyPNG $ dir <> "/webcam001.png"
-  pure $ toImage 320 240 $ scale 0.5 0.5 png
+  Right png <- loadImageEmb $ dir <> "/webcam001.png"
+  pure $ scale 0.5 $ image png
 
 
-
-toImage :: Float -> Float -> Picture -> Image
-toImage w h = Image w h . pure . (, (0, 0))
-
-
-toPicture :: Image -> Picture
-toPicture
-  = Pictures
-  . fmap (\(p, (x, y)) -> translate x y p)
-  . shapes
 

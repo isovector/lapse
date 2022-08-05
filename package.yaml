@@ -21,15 +21,19 @@ description:         Please see the README on GitHub at <https://github.com/isov
 
 dependencies:
 - base >= 4.7 && < 5
-- gloss
-- gloss-export
-- gloss-juicy
-- htdp-image
+# - gloss
+# - gloss-export
+# - gloss-juicy
+# - htdp-image
 - process
 - temporary
 - time
 - async
 - directory
+- diagrams
+- diagrams-core
+- diagrams-lib
+- diagrams-rasterific
 
 library:
   source-dirs: src
