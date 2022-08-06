@@ -22,6 +22,17 @@ data SelfStats = SelfStats
   }
   deriving (Eq, Ord, Show)
 
+instance Semigroup SelfStats where
+  SelfStats n i j x ndt sess <> SelfStats y z w int ndt' sess'
+    = SelfStats
+        { ss_keystrokes = n + y
+        , ss_keyseqs = i + z
+        , ss_clicks = j + w
+        , ss_mouses = x + int
+        , ss_total = ndt + ndt'
+        , ss_sessions = sess <> sess'
+        }
+
 
 data Session = Session
   { s_start :: LocalTime

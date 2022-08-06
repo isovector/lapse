@@ -24,7 +24,7 @@ getWebcam dir = do
 getScreenshot :: FilePath -> IO (Diagram B)
 getScreenshot dir = do
   let fp = dir <> "/screenshot.png"
-  callProcess "scrot" ["-p", "-f", fp]
+  callProcess "scrot" ["-p", "-z", "-f", fp]
   Right png <- loadImageEmb fp
   pure $ image png
 

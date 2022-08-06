@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Lib where
 
@@ -6,7 +7,7 @@ import ClockPanel
 import Control.Concurrent.Async
 import Data
 import Diagrams.Backend.Rasterific (renderRasterific)
-import Diagrams.Prelude hiding (value, Options)
+import Diagrams.Prelude hiding (option, value, Options)
 import GitPanel
 import SpyPanels
 import System.IO.Temp (withSystemTempDirectory)
@@ -15,12 +16,24 @@ import Options.Applicative
 import System.Process (readProcess)
 import System.Directory (getDirectoryContents)
 import Control.Monad (forever)
+import Types
 
 
 data Options = Options
   { o_sha :: Maybe String
   , o_dir :: FilePath
+  , o_bonus_stats :: SelfStats
   }
+
+selfStatsOptions :: Parser SelfStats
+selfStatsOptions =
+  SelfStats
+    <$> option auto (long "extra-keystrokes" <> value 0)
+    <*> option auto (long "extra-keyseqs" <> value 0)
+    <*> option auto (long "extra-clicks" <> value 0)
+    <*> option auto (long "extra-mouses" <> value 0)
+    <*> option (fmap (fromIntegral @Int) auto) (long "extra-total" <> value 0)
+    <*> pure []
 
 
 optsParser :: ParserInfo Options
@@ -40,6 +53,7 @@ programOptions =
   Options
     <$> optional (strOption (long "sha" <> metavar "SHA" <> help "SHA to base git stats relative to"))
     <*> argument str (metavar "OUTPUT-DIR" <> help "Output directory")
+    <*> selfStatsOptions
 
 
 main :: IO ()
@@ -55,7 +69,7 @@ main = do
           <*> Concurrently (getWebcam dir)
           <*> Concurrently getNow
           <*> Concurrently (getGitStats sha)
-          <*> Concurrently getSelfStats
+          <*> Concurrently (fmap (o_bonus_stats opts <>) getSelfStats)
           <*> Concurrently (getNextFileName $ o_dir opts)
       let panel_sep = rect 2 240 # fc grey # lw 0
           background = rect 1920 240 # fc (darken 0.05 darkviolet) # lw 0

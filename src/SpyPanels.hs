@@ -22,6 +22,7 @@ getSelfStats = do
       [ "%dd %Hh %Mm %Ss"
       , "%hh %Mm %Ss"
       , "%Mm %Ss"
+      , "%Ss"
       ]
   let Just sessions = traverse parseSession $ filter (not . null) periodsl
   pure $
